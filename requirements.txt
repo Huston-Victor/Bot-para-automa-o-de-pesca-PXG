@@ -3,3 +3,5 @@ opencv-python
 NumPy
 Pillow
 keyboard
+pydirectinput
+pyautoit
