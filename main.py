@@ -16,27 +16,101 @@ BOLHAS = "imagens/bolhas.png"
 PEIXE = "imagens/peixe.png"
 REGIAO = "imagens/regiao.png"
 
+ELIXIR_COOLDOWN = "imagens/elixir_cooldown.png"
+
+SHINY = "imagens/shiny.png"
+
+
 CONFIANCA_BOLHAS = 0.85
 CONFIANCA_PEIXE = 0.70
 
-# Região onde o mini-game aparece
-REGIAO_MINIGAME = (900, 430, 100, 420)
+CONFIANCA_ELIXIR_COOLDOWN = 0.75
 
-# Região aproximada da barra
-BARRA_X = (948, 975)
-BARRA_Y = (435, 842)
+CONFIANCA_SHINY = 0.80
 
-# Tempo máximo esperando o mini-game aparecer
-TEMPO_DETECCAO_MINIGAME = 2
 
-# Tempo sem detectar peixe/barra para considerar
-# que o mini-game terminou
+# ============================================================
+# COORDENADA DA PESCA
+# ============================================================
+
+COORDENADA_PESCA = (416, 532)
+
+
+# ============================================================
+# COORDENADA DA BALL
+# ============================================================
+
+COORDENADA_BALL = (825, 998)
+
+
+# ============================================================
+# REGIÃO DO ELIXIR
+# ============================================================
+
+REGIAO_ELIXIR = (
+    800,
+    950,
+    120,
+    120
+)
+
+
+# ============================================================
+# REGIÃO DE BUSCA DO SHINY
+# ============================================================
+
+REGIAO_BUSCA_SHINY = (
+    0,
+    20,
+    1475,
+    850
+)
+
+
+# ============================================================
+# REGIÃO DO MINI-GAME
+# ============================================================
+
+REGIAO_MINIGAME = (
+    900,
+    430,
+    100,
+    420
+)
+
+
+# ============================================================
+# REGIÃO DA BARRA
+# ============================================================
+
+BARRA_X = (
+    948,
+    975
+)
+
+BARRA_Y = (
+    435,
+    842
+)
+
+
+# ============================================================
+# TEMPOS
+# ============================================================
+
+TEMPO_DETECCAO_MINIGAME = 0.10
+
 TEMPO_DESAPARECIMENTO_MINIGAME = 2.0
 
-# Proteção contra ficar preso no mini-game
 TEMPO_MAXIMO_MINIGAME = 30
 
-# Estado do Space
+TEMPO_ULTIMA_BARRA = 0.20
+
+
+# ============================================================
+# ESTADO DO SPACE
+# ============================================================
+
 SPACE_PRESSIONADO = False
 
 
@@ -47,7 +121,13 @@ SPACE_PRESSIONADO = False
 py.useImageNotFoundException(False)
 
 
-imagem_bolhas = cv2.imread(BOLHAS)
+# ============================================================
+# CARREGAR IMAGENS
+# ============================================================
+
+imagem_bolhas = cv2.imread(
+    BOLHAS
+)
 
 imagem_peixe = cv2.imread(
     PEIXE,
@@ -59,24 +139,63 @@ imagem_regiao = cv2.imread(
     cv2.IMREAD_GRAYSCALE
 )
 
+imagem_elixir_cooldown = cv2.imread(
+    ELIXIR_COOLDOWN,
+    cv2.IMREAD_GRAYSCALE
+)
+
+imagem_shiny = cv2.imread(
+    SHINY,
+    cv2.IMREAD_GRAYSCALE
+)
+
+
+# ============================================================
+# VERIFICAR IMAGENS
+# ============================================================
 
 if imagem_bolhas is None:
-    raise SystemExit("Imagem bolhas.png não encontrada.")
+    raise SystemExit(
+        "Imagem bolhas.png não encontrada."
+    )
 
 if imagem_peixe is None:
-    raise SystemExit("Imagem peixe.png não encontrada.")
+    raise SystemExit(
+        "Imagem peixe.png não encontrada."
+    )
 
 if imagem_regiao is None:
-    raise SystemExit("Imagem regiao.png não encontrada.")
+    raise SystemExit(
+        "Imagem regiao.png não encontrada."
+    )
+
+if imagem_elixir_cooldown is None:
+    raise SystemExit(
+        "Imagem elixir_cooldown.png não encontrada."
+    )
+
+if imagem_shiny is None:
+    raise SystemExit(
+        "Imagem shiny.png não encontrada."
+    )
+
+
+# ============================================================
+# DIMENSÕES DO SHINY
+# ============================================================
+
+ALTURA_SHINY, LARGURA_SHINY = (
+    imagem_shiny.shape
+)
 
 
 # ============================================================
 # ATIVAR JANELA
 # ============================================================
 
-autoit.win_activate(JANELA)
-
-py.moveTo(416, 532)
+autoit.win_activate(
+    JANELA
+)
 
 
 # ============================================================
@@ -86,7 +205,9 @@ py.moveTo(416, 532)
 def capturar_tela():
 
     return cv2.cvtColor(
-        np.array(py.screenshot()),
+        np.array(
+            py.screenshot()
+        ),
         cv2.COLOR_RGB2BGR
     )
 
@@ -103,7 +224,9 @@ def verificar_f1():
 
         if SPACE_PRESSIONADO:
 
-            keyboard.release("space")
+            keyboard.release(
+                "space"
+            )
 
             SPACE_PRESSIONADO = False
 
@@ -120,9 +243,66 @@ def liberar_space():
 
     if SPACE_PRESSIONADO:
 
-        keyboard.release("space")
+        keyboard.release(
+            "space"
+        )
 
         SPACE_PRESSIONADO = False
+
+
+# ============================================================
+# DETECTAR COOLDOWN DO ELIXIR
+# ============================================================
+
+def detectar_cooldown_elixir():
+
+    imagem = capturar_tela()
+
+    x, y, largura, altura = (
+        REGIAO_ELIXIR
+    )
+
+    regiao = cv2.cvtColor(
+        imagem[
+            y:y + altura,
+            x:x + largura
+        ],
+        cv2.COLOR_BGR2GRAY
+    )
+
+    resultado = cv2.matchTemplate(
+        regiao,
+        imagem_elixir_cooldown,
+        cv2.TM_CCOEFF_NORMED
+    )
+
+    confianca = cv2.minMaxLoc(
+        resultado
+    )[1]
+
+    return (
+        confianca
+        >= CONFIANCA_ELIXIR_COOLDOWN
+    )
+
+
+# ============================================================
+# USAR ELIXIR
+# ============================================================
+
+def usar_elixir():
+
+    if detectar_cooldown_elixir():
+
+        return
+
+    autoit.send(
+        "+5"
+    )
+
+    time.sleep(
+        0.2
+    )
 
 
 # ============================================================
@@ -139,9 +319,14 @@ def detectar_bolhas():
         cv2.TM_CCOEFF_NORMED
     )
 
-    confianca = cv2.minMaxLoc(resultado)[1]
+    confianca = cv2.minMaxLoc(
+        resultado
+    )[1]
 
-    return confianca >= CONFIANCA_BOLHAS
+    return (
+        confianca
+        >= CONFIANCA_BOLHAS
+    )
 
 
 # ============================================================
@@ -150,8 +335,9 @@ def detectar_bolhas():
 
 def esperar_bolhas():
 
-    # Dá tempo para a animação da pesca anterior terminar
-    time.sleep(0.3)
+    time.sleep(
+        0.3
+    )
 
     while True:
 
@@ -161,7 +347,139 @@ def esperar_bolhas():
 
             return True
 
-        time.sleep(0.03)
+        time.sleep(
+            0.03
+        )
+
+
+# ============================================================
+# DETECTAR SHINY
+# ============================================================
+
+def detectar_shiny():
+
+    imagem = capturar_tela()
+
+    x, y, largura, altura = (
+        REGIAO_BUSCA_SHINY
+    )
+
+    regiao = imagem[
+        y:y + altura,
+        x:x + largura
+    ]
+
+    regiao_cinza = cv2.cvtColor(
+        regiao,
+        cv2.COLOR_BGR2GRAY
+    )
+
+    resultado = cv2.matchTemplate(
+        regiao_cinza,
+        imagem_shiny,
+        cv2.TM_CCOEFF_NORMED
+    )
+
+    _, confianca, _, posicao = (
+        cv2.minMaxLoc(
+            resultado
+        )
+    )
+
+    if confianca < CONFIANCA_SHINY:
+
+        return None
+
+    esquerda = (
+        posicao[0]
+        + x
+    )
+
+    topo = (
+        posicao[1]
+        + y
+    )
+
+    centro_x = (
+        esquerda
+        + LARGURA_SHINY // 2
+    )
+
+    centro_y = (
+        topo
+        + ALTURA_SHINY // 2
+    )
+
+    return (
+        centro_x,
+        centro_y
+    )
+
+
+# ============================================================
+# PEGAR SHINY
+# ============================================================
+
+def pegar_shiny():
+
+    coordenada = detectar_shiny()
+
+    if coordenada is None:
+
+        return False
+
+    x, y = coordenada
+
+
+    # ========================================================
+    # 1. BOTÃO DIREITO DIRETAMENTE NO SHINY
+    # ========================================================
+
+    py.click(
+        x=x,
+        y=y,
+        button="right"
+    )
+
+
+    time.sleep(
+        0.15
+    )
+
+
+    # ========================================================
+    # 2. CLIQUE DIRETO NA BALL
+    # ========================================================
+
+    py.click(
+        x=COORDENADA_BALL[0],
+        y=COORDENADA_BALL[1],
+        button="left"
+    )
+
+
+    time.sleep(
+        0.15
+    )
+
+
+    # ========================================================
+    # 3. CLIQUE DIRETO NOVAMENTE NO SHINY
+    # ========================================================
+
+    py.click(
+        x=x,
+        y=y,
+        button="left"
+    )
+
+
+    time.sleep(
+        0.20
+    )
+
+
+    return True
 
 
 # ============================================================
@@ -170,7 +488,9 @@ def esperar_bolhas():
 
 def detectar_peixe(imagem):
 
-    x, y, largura, altura = REGIAO_MINIGAME
+    x, y, largura, altura = (
+        REGIAO_MINIGAME
+    )
 
     regiao = cv2.cvtColor(
         imagem[
@@ -186,8 +506,10 @@ def detectar_peixe(imagem):
         cv2.TM_CCOEFF_NORMED
     )
 
-    _, confianca, _, posicao = cv2.minMaxLoc(
-        resultado
+    _, confianca, _, posicao = (
+        cv2.minMaxLoc(
+            resultado
+        )
     )
 
     if confianca < CONFIANCA_PEIXE:
@@ -208,10 +530,14 @@ def detectar_peixe(imagem):
 def detectar_barra(imagem):
 
     x1, x2 = BARRA_X
+
     y1, y2 = BARRA_Y
 
     regiao = cv2.cvtColor(
-        imagem[y1:y2, x1:x2],
+        imagem[
+            y1:y2,
+            x1:x2
+        ],
         cv2.COLOR_BGR2GRAY
     )
 
@@ -220,7 +546,7 @@ def detectar_barra(imagem):
         axis=1
     )
 
-    mascara = brilho > 80
+    mascara = brilho > 65
 
     segmentos = []
 
@@ -232,21 +558,42 @@ def detectar_barra(imagem):
 
             inicio = i
 
-        elif not ativo and inicio is not None:
+        elif (
+            not ativo
+            and inicio is not None
+        ):
 
-            if i - inicio >= 8:
+            tamanho = (
+                i
+                - inicio
+            )
+
+            if tamanho >= 5:
 
                 segmentos.append(
-                    (inicio, i)
+                    (
+                        inicio,
+                        i
+                    )
                 )
 
             inicio = None
 
     if inicio is not None:
 
-        segmentos.append(
-            (inicio, len(mascara))
+        tamanho = (
+            len(mascara)
+            - inicio
         )
+
+        if tamanho >= 5:
+
+            segmentos.append(
+                (
+                    inicio,
+                    len(mascara)
+                )
+            )
 
     if not segmentos:
 
@@ -254,7 +601,8 @@ def detectar_barra(imagem):
 
     topo, fundo = max(
         segmentos,
-        key=lambda s: s[1] - s[0]
+        key=lambda s:
+        s[1] - s[0]
     )
 
     return (
@@ -269,13 +617,17 @@ def detectar_barra(imagem):
 
 def detectar_minigame(imagem):
 
-    peixe_y = detectar_peixe(imagem)
+    peixe_y = detectar_peixe(
+        imagem
+    )
 
     if peixe_y is not None:
 
         return True
 
-    barra = detectar_barra(imagem)
+    barra = detectar_barra(
+        imagem
+    )
 
     if barra is not None:
 
@@ -298,25 +650,33 @@ def esperar_minigame():
 
         imagem = capturar_tela()
 
-        if detectar_minigame(imagem):
+        if detectar_minigame(
+            imagem
+        ):
 
             return True
 
         if (
-            time.time() - inicio
+            time.time()
+            - inicio
             >= TEMPO_DETECCAO_MINIGAME
         ):
 
             return False
 
-        time.sleep(0.03)
+        time.sleep(
+            0.005
+        )
 
 
 # ============================================================
 # CONTROLAR MINI-GAME
 # ============================================================
 
-def controlar_minigame(peixe_y, barra):
+def controlar_minigame(
+    peixe_y,
+    barra
+):
 
     global SPACE_PRESSIONADO
 
@@ -324,21 +684,23 @@ def controlar_minigame(peixe_y, barra):
 
     margem = 3
 
-    # Peixe acima da barra
     if peixe_y < topo + margem:
 
         if not SPACE_PRESSIONADO:
 
-            keyboard.press("space")
+            keyboard.press(
+                "space"
+            )
 
             SPACE_PRESSIONADO = True
 
-    # Peixe abaixo da barra
     elif peixe_y > fundo - margem:
 
         if SPACE_PRESSIONADO:
 
-            keyboard.release("space")
+            keyboard.release(
+                "space"
+            )
 
             SPACE_PRESSIONADO = False
 
@@ -355,13 +717,23 @@ def resolver_minigame():
 
     ultima_deteccao = time.time()
 
+    ultima_barra = None
+
+    momento_ultima_barra = 0
+
+
     while True:
 
         verificar_f1()
 
-        # Proteção contra ficar preso
+
+        # ====================================================
+        # PROTEÇÃO
+        # ====================================================
+
         if (
-            time.time() - inicio
+            time.time()
+            - inicio
             >= TEMPO_MAXIMO_MINIGAME
         ):
 
@@ -372,23 +744,78 @@ def resolver_minigame():
 
         imagem = capturar_tela()
 
-        peixe_y = detectar_peixe(imagem)
 
-        barra = detectar_barra(imagem)
+        # ====================================================
+        # DETECTAR PEIXE
+        # ====================================================
+
+        peixe_y = detectar_peixe(
+            imagem
+        )
 
 
         # ====================================================
-        # PEIXE + BARRA ENCONTRADOS
+        # DETECTAR BARRA
+        # ====================================================
+
+        barra = detectar_barra(
+            imagem
+        )
+
+
+        # ====================================================
+        # SALVAR ÚLTIMA BARRA
+        # ====================================================
+
+        if barra is not None:
+
+            ultima_barra = barra
+
+            momento_ultima_barra = (
+                time.time()
+            )
+
+
+        # ====================================================
+        # RECUPERAR ÚLTIMA BARRA
+        # ====================================================
+
+        if (
+            barra is None
+            and
+            ultima_barra is not None
+        ):
+
+            tempo_desde_barra = (
+                time.time()
+                - momento_ultima_barra
+            )
+
+
+            if (
+                tempo_desde_barra
+                <= TEMPO_ULTIMA_BARRA
+            ):
+
+                barra = ultima_barra
+
+
+        # ====================================================
+        # PEIXE + BARRA
         # ====================================================
 
         if (
             peixe_y is not None
-            and barra is not None
+            and
+            barra is not None
         ):
 
             detectado = True
 
-            ultima_deteccao = time.time()
+            ultima_deteccao = (
+                time.time()
+            )
+
 
             controlar_minigame(
                 peixe_y,
@@ -397,7 +824,7 @@ def resolver_minigame():
 
 
         # ====================================================
-        # NÃO ENCONTROU PEIXE/BARRA
+        # PERDEU A DETECÇÃO
         # ====================================================
 
         else:
@@ -409,6 +836,7 @@ def resolver_minigame():
                     - ultima_deteccao
                 )
 
+
                 if (
                     tempo_sem_detectar
                     >= TEMPO_DESAPARECIMENTO_MINIGAME
@@ -419,7 +847,9 @@ def resolver_minigame():
                     return
 
 
-        time.sleep(0.01)
+        time.sleep(
+            0.005
+        )
 
 
 # ============================================================
@@ -428,10 +858,9 @@ def resolver_minigame():
 
 def fazer_loot():
 
-    autoit.send("e")
-
-    # Pequena pausa para o jogo processar o loot
-    time.sleep(0.2)
+    autoit.send(
+        "e"
+    )
 
 
 # ============================================================
@@ -444,42 +873,62 @@ while True:
 
 
     # ========================================================
-    # 1. LANÇA A VARA
+    # 1. ELIXIR
     # ========================================================
 
-    autoit.send("q")
+    usar_elixir()
 
 
     # ========================================================
-    # 2. ESPERA AS BOLHAS
+    # 2. POSICIONA MOUSE PARA PESCA
+    # ========================================================
+
+    py.moveTo(
+        *COORDENADA_PESCA
+    )
+
+
+    # ========================================================
+    # 3. LANÇA A VARA
+    # ========================================================
+
+    autoit.send(
+        "q"
+    )
+
+
+    # ========================================================
+    # 4. ESPERA BOLHAS
     # ========================================================
 
     esperar_bolhas()
 
 
     # ========================================================
-    # 3. PUXA A VARA
+    # 5. PUXA A VARA
     # ========================================================
 
-    autoit.send("q")
+    autoit.send(
+        "q"
+    )
 
 
     # ========================================================
-    # 4. LOOTEIA A ÁREA
+    # 6. LOOT
     # ========================================================
 
     fazer_loot()
 
 
     # ========================================================
-    # 5. ESPERA O RESULTADO DA PESCA
+    # 7. PROCURA SHINY
     # ========================================================
 
-    time.sleep(1)
+    pegar_shiny()
 
 
     # ========================================================
-    # 6. VERIFICA SE VEIO MINI-GAME
+    # 8. VERIFICA MINI-GAME
     # ========================================================
 
     if esperar_minigame():
@@ -488,14 +937,16 @@ while True:
 
 
     # ========================================================
-    # 7. GARANTE QUE O SPACE ESTÁ SOLTO
+    # 9. GARANTE SPACE SOLTO
     # ========================================================
 
     liberar_space()
 
 
     # ========================================================
-    # 8. PEQUENO INTERVALO
+    # 10. PRÓXIMA PESCADA
     # ========================================================
 
-    time.sleep(0.5)
+    time.sleep(
+        0.05
+    )
