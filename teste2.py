@@ -1,9 +1,12 @@
-import pyautogui as py
-import autoit
 import time
+import keyboard
 
 
-#Transfere para a janela doo PXG
-autoit.win_activate("PokeXGames")
+print("Você tem 3 segundos para clicar no PXG...")
+time.sleep(3)
 
-py.moveTo ()
+print("Enviando Shift + 4...")
+
+keyboard.send("shift+4")
+
+print("Enviado.")

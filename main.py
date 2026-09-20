@@ -1,4 +1,5 @@
 import time
+import os
 import cv2
 import numpy as np
 import pyautogui as py
@@ -19,28 +20,32 @@ REGIAO = "imagens/regiao.png"
 ELIXIR_COOLDOWN = "imagens/elixir_cooldown.png"
 
 SHINY = "imagens/shiny.png"
+SHINY_ALTERNATIVO = "imagens/shiny(1).png"
 
+
+# ============================================================
+# CONFIANÇAS
+# ============================================================
 
 CONFIANCA_BOLHAS = 0.85
-CONFIANCA_PEIXE = 0.70
+
+CONFIANCA_PEIXE = 0.80
 
 CONFIANCA_ELIXIR_COOLDOWN = 0.75
 
-CONFIANCA_SHINY = 0.80
+ERRO_MAXIMO_SHINY = 0.15
+
+PERCENTUAL_AMARELO_SHINY = 0.12
 
 
 # ============================================================
 # COORDENADA DA PESCA
 # ============================================================
 
-COORDENADA_PESCA = (416, 532)
-
-
-# ============================================================
-# COORDENADA DA BALL
-# ============================================================
-
-COORDENADA_BALL = (825, 998)
+COORDENADA_PESCA = (
+    416,
+    532
+)
 
 
 # ============================================================
@@ -95,7 +100,7 @@ BARRA_Y = (
 
 
 # ============================================================
-# TEMPOS
+# TEMPOS DO MINI-GAME
 # ============================================================
 
 TEMPO_DETECCAO_MINIGAME = 0.10
@@ -105,6 +110,20 @@ TEMPO_DESAPARECIMENTO_MINIGAME = 2.0
 TEMPO_MAXIMO_MINIGAME = 30
 
 TEMPO_ULTIMA_BARRA = 0.20
+
+
+# ============================================================
+# TEMPO ENTRE PUXAR E LANÇAR NOVAMENTE
+# ============================================================
+
+TEMPO_REPETIR_PESCA = 2.3
+
+
+# ============================================================
+# TEMPO MÁXIMO SEM DETECTAR BOLHAS
+# ============================================================
+
+TEMPO_SEM_BOLHAS = 15.0
 
 
 # ============================================================
@@ -144,9 +163,25 @@ imagem_elixir_cooldown = cv2.imread(
     cv2.IMREAD_GRAYSCALE
 )
 
-imagem_shiny = cv2.imread(
-    SHINY,
-    cv2.IMREAD_GRAYSCALE
+
+# ============================================================
+# ESCOLHER IMAGEM DO SHINY
+# ============================================================
+
+caminho_shiny = SHINY
+
+if os.path.exists(
+    SHINY_ALTERNATIVO
+):
+
+    caminho_shiny = (
+        SHINY_ALTERNATIVO
+    )
+
+
+imagem_shiny_original = cv2.imread(
+    caminho_shiny,
+    cv2.IMREAD_UNCHANGED
 )
 
 
@@ -155,37 +190,172 @@ imagem_shiny = cv2.imread(
 # ============================================================
 
 if imagem_bolhas is None:
+
     raise SystemExit(
         "Imagem bolhas.png não encontrada."
     )
 
+
 if imagem_peixe is None:
+
     raise SystemExit(
         "Imagem peixe.png não encontrada."
     )
 
+
 if imagem_regiao is None:
+
     raise SystemExit(
         "Imagem regiao.png não encontrada."
     )
 
+
 if imagem_elixir_cooldown is None:
+
     raise SystemExit(
         "Imagem elixir_cooldown.png não encontrada."
     )
 
-if imagem_shiny is None:
+
+if imagem_shiny_original is None:
+
     raise SystemExit(
-        "Imagem shiny.png não encontrada."
+        "Imagem shiny não encontrada."
     )
 
 
 # ============================================================
-# DIMENSÕES DO SHINY
+# PREPARAR SHINY
 # ============================================================
 
-ALTURA_SHINY, LARGURA_SHINY = (
-    imagem_shiny.shape
+if (
+    len(imagem_shiny_original.shape) == 3
+    and
+    imagem_shiny_original.shape[2] == 4
+):
+
+    imagem_shiny_bgr = (
+        imagem_shiny_original[:, :, :3]
+    )
+
+    alpha_shiny = (
+        imagem_shiny_original[:, :, 3]
+    )
+
+else:
+
+    imagem_shiny_bgr = (
+        imagem_shiny_original
+    )
+
+    alpha_shiny = (
+        np.ones(
+            imagem_shiny_bgr.shape[:2],
+            dtype=np.uint8
+        )
+        * 255
+    )
+
+
+# ============================================================
+# RECORTAR ÁREA VISÍVEL DO SHINY
+# ============================================================
+
+pixels_validos = (
+    alpha_shiny > 10
+)
+
+
+ys, xs = np.where(
+    pixels_validos
+)
+
+
+if len(xs) == 0:
+
+    raise SystemExit(
+        "A imagem do shiny não possui área visível."
+    )
+
+
+x_min = xs.min()
+
+x_max = xs.max() + 1
+
+y_min = ys.min()
+
+y_max = ys.max() + 1
+
+
+imagem_shiny_bgr = (
+    imagem_shiny_bgr[
+        y_min:y_max,
+        x_min:x_max
+    ]
+)
+
+
+alpha_shiny = (
+    alpha_shiny[
+        y_min:y_max,
+        x_min:x_max
+    ]
+)
+
+
+# ============================================================
+# SHINY EM CINZA
+# ============================================================
+
+imagem_shiny_cinza = cv2.cvtColor(
+    imagem_shiny_bgr,
+    cv2.COLOR_BGR2GRAY
+)
+
+
+# ============================================================
+# MÁSCARA DO SHINY
+# ============================================================
+
+mascara_shiny = (
+    alpha_shiny > 10
+).astype(
+    np.uint8
+)
+
+mascara_shiny = (
+    mascara_shiny * 255
+).astype(
+    np.uint8
+)
+
+
+# ============================================================
+# MÁSCARA AMARELA DO TEMPLATE
+# ============================================================
+
+shiny_hsv = cv2.cvtColor(
+    imagem_shiny_bgr,
+    cv2.COLOR_BGR2HSV
+)
+
+hue = shiny_hsv[:, :, 0]
+
+saturacao = shiny_hsv[:, :, 1]
+
+brilho = shiny_hsv[:, :, 2]
+
+
+mascara_amarela_template = (
+    (hue >= 15)
+    &
+    (hue <= 40)
+    &
+    (saturacao >= 100)
+    &
+    (brilho >= 100)
+    &
+    (mascara_shiny > 0)
 )
 
 
@@ -213,14 +383,14 @@ def capturar_tela():
 
 
 # ============================================================
-# F1
+# F11
 # ============================================================
 
-def verificar_f1():
+def verificar_f11():
 
     global SPACE_PRESSIONADO
 
-    if keyboard.is_pressed("f1"):
+    if keyboard.is_pressed("f11"):
 
         if SPACE_PRESSIONADO:
 
@@ -294,7 +464,7 @@ def usar_elixir():
 
     if detectar_cooldown_elixir():
 
-        return
+        return False
 
     autoit.send(
         "+5"
@@ -303,6 +473,8 @@ def usar_elixir():
     time.sleep(
         0.2
     )
+
+    return True
 
 
 # ============================================================
@@ -339,17 +511,151 @@ def esperar_bolhas():
         0.3
     )
 
+    inicio = time.monotonic()
+
     while True:
 
-        verificar_f1()
+        verificar_f11()
+
+        # ====================================================
+        # DETECTOU BOLHAS
+        # ====================================================
 
         if detectar_bolhas():
 
             return True
 
+
+        # ====================================================
+        # CALCULAR TEMPO SEM BOLHAS
+        # ====================================================
+
+        tempo_sem_bolhas = (
+            time.monotonic()
+            - inicio
+        )
+
+
+        # ====================================================
+        # TIMEOUT DE 15 SEGUNDOS
+        # ====================================================
+
+        if (
+            tempo_sem_bolhas
+            >= TEMPO_SEM_BOLHAS
+        ):
+
+            # ------------------------------------------------
+            # REPOSICIONAR MOUSE
+            # ------------------------------------------------
+
+            py.moveTo(
+                *COORDENADA_PESCA
+            )
+
+
+            # ------------------------------------------------
+            # PEQUENO DELAY
+            # ------------------------------------------------
+
+            time.sleep(
+                0.1
+            )
+
+
+            # ------------------------------------------------
+            # TENTAR LANÇAR NOVAMENTE
+            # ------------------------------------------------
+
+            autoit.send(
+                "q"
+            )
+
+
+            # ------------------------------------------------
+            # REINICIAR CONTADOR
+            # ------------------------------------------------
+
+            inicio = time.monotonic()
+
+
+            # ------------------------------------------------
+            # DAR TEMPO PARA O JOGO PROCESSAR
+            # ------------------------------------------------
+
+            time.sleep(
+                0.2
+            )
+
+            continue
+
+
+        # ====================================================
+        # INTERVALO NORMAL
+        # ====================================================
+
         time.sleep(
             0.03
         )
+
+
+# ============================================================
+# VALIDAR COR AMARELA DO SHINY
+# ============================================================
+
+def validar_shiny_amarelo(
+    regiao,
+    mascara_shape
+):
+
+    if regiao.size == 0:
+
+        return False
+
+    hsv = cv2.cvtColor(
+        regiao,
+        cv2.COLOR_BGR2HSV
+    )
+
+    h = hsv[:, :, 0]
+
+    s = hsv[:, :, 1]
+
+    v = hsv[:, :, 2]
+
+    mascara_amarela = (
+        (h >= 12)
+        &
+        (h <= 40)
+        &
+        (s >= 100)
+        &
+        (v >= 100)
+        &
+        (mascara_shape > 0)
+    )
+
+    pixels_shape = np.count_nonzero(
+        mascara_shape
+    )
+
+    if pixels_shape == 0:
+
+        return False
+
+    pixels_amarelos = np.count_nonzero(
+        mascara_amarela
+    )
+
+    percentual = (
+        pixels_amarelos
+        / pixels_shape
+    )
+
+    return (
+        percentual
+        >= PERCENTUAL_AMARELO_SHINY
+    )
 
 
 # ============================================================
@@ -374,45 +680,223 @@ def detectar_shiny():
         cv2.COLOR_BGR2GRAY
     )
 
-    resultado = cv2.matchTemplate(
-        regiao_cinza,
-        imagem_shiny,
-        cv2.TM_CCOEFF_NORMED
-    )
+    melhor_erro = float("inf")
 
-    _, confianca, _, posicao = (
-        cv2.minMaxLoc(
-            resultado
+    melhor_posicao = None
+
+    melhor_tamanho = None
+
+    melhor_mascara = None
+
+
+    # ========================================================
+    # ESCALAS
+    # ========================================================
+
+    escalas = [
+        0.75,
+        0.80,
+        0.85,
+        0.90,
+        0.95,
+        1.00,
+        1.05,
+        1.10,
+        1.15,
+        1.20,
+        1.25
+    ]
+
+
+    # ========================================================
+    # PROCURAR SHINY
+    # ========================================================
+
+    for escala in escalas:
+
+        nova_largura = int(
+            imagem_shiny_cinza.shape[1]
+            * escala
         )
-    )
 
-    if confianca < CONFIANCA_SHINY:
+        nova_altura = int(
+            imagem_shiny_cinza.shape[0]
+            * escala
+        )
+
+        if (
+            nova_largura < 20
+            or
+            nova_altura < 15
+        ):
+
+            continue
+
+        if (
+            nova_largura
+            > regiao_cinza.shape[1]
+            or
+            nova_altura
+            > regiao_cinza.shape[0]
+        ):
+
+            continue
+
+        template = cv2.resize(
+            imagem_shiny_cinza,
+            (
+                nova_largura,
+                nova_altura
+            ),
+            interpolation=cv2.INTER_CUBIC
+        )
+
+        mascara = cv2.resize(
+            mascara_shiny,
+            (
+                nova_largura,
+                nova_altura
+            ),
+            interpolation=cv2.INTER_NEAREST
+        )
+
+        mascara = (
+            mascara * 255
+        ).astype(
+            np.uint8
+        )
+
+        resultado = cv2.matchTemplate(
+            regiao_cinza,
+            template,
+            cv2.TM_SQDIFF_NORMED,
+            mask=mascara
+        )
+
+        erro, _, posicao, _ = (
+            cv2.minMaxLoc(
+                resultado
+            )
+        )
+
+        if erro < melhor_erro:
+
+            melhor_erro = erro
+
+            melhor_posicao = posicao
+
+            melhor_tamanho = (
+                nova_largura,
+                nova_altura
+            )
+
+            melhor_mascara = mascara
+
+
+    # ========================================================
+    # VALIDAR RESULTADO
+    # ========================================================
+
+    if (
+        melhor_posicao is None
+        or
+        melhor_tamanho is None
+        or
+        melhor_mascara is None
+    ):
 
         return None
 
-    esquerda = (
-        posicao[0]
-        + x
+    if (
+        melhor_erro
+        > ERRO_MAXIMO_SHINY
+    ):
+
+        return None
+
+
+    # ========================================================
+    # POSIÇÃO DO CANDIDATO
+    # ========================================================
+
+    px = melhor_posicao[0]
+
+    py_ = melhor_posicao[1]
+
+    largura_shiny = (
+        melhor_tamanho[0]
     )
 
-    topo = (
-        posicao[1]
-        + y
+    altura_shiny = (
+        melhor_tamanho[1]
     )
+
+
+    # ========================================================
+    # RECORTAR CANDIDATO
+    # ========================================================
+
+    candidato = regiao[
+        py_:
+        py_ + altura_shiny,
+        px:
+        px + largura_shiny
+    ]
+
+
+    if (
+        candidato.shape[1]
+        != largura_shiny
+        or
+        candidato.shape[0]
+        != altura_shiny
+    ):
+
+        return None
+
+
+    # ========================================================
+    # VALIDAR AMARELO
+    # ========================================================
+
+    if not validar_shiny_amarelo(
+        candidato,
+        melhor_mascara
+    ):
+
+        return None
+
+
+    # ========================================================
+    # CENTRO DO SHINY
+    # ========================================================
 
     centro_x = (
-        esquerda
-        + LARGURA_SHINY // 2
+        x
+        + px
+        + largura_shiny // 2
     )
 
     centro_y = (
-        topo
-        + ALTURA_SHINY // 2
+        y
+        + py_
+        + altura_shiny // 2
     )
 
     return (
         centro_x,
         centro_y
+    )
+
+
+# ============================================================
+# USAR BALL
+# ============================================================
+
+def usar_ball():
+
+    keyboard.send(
+        "shift+4"
     )
 
 
@@ -430,54 +914,29 @@ def pegar_shiny():
 
     x, y = coordenada
 
+    py.moveTo(
+        x,
+        y,
+        duration=0.05
+    )
 
-    # ========================================================
-    # 1. BOTÃO DIREITO DIRETAMENTE NO SHINY
-    # ========================================================
+    time.sleep(
+        0.05
+    )
 
     py.click(
-        x=x,
-        y=y,
         button="right"
     )
 
-
     time.sleep(
-        0.15
+        0.70
     )
 
-
-    # ========================================================
-    # 2. CLIQUE DIRETO NA BALL
-    # ========================================================
-
-    py.click(
-        x=COORDENADA_BALL[0],
-        y=COORDENADA_BALL[1],
-        button="left"
-    )
-
-
-    time.sleep(
-        0.15
-    )
-
-
-    # ========================================================
-    # 3. CLIQUE DIRETO NOVAMENTE NO SHINY
-    # ========================================================
-
-    py.click(
-        x=x,
-        y=y,
-        button="left"
-    )
-
+    usar_ball()
 
     time.sleep(
         0.20
     )
-
 
     return True
 
@@ -552,6 +1011,7 @@ def detectar_barra(imagem):
 
     inicio = None
 
+
     for i, ativo in enumerate(mascara):
 
         if ativo and inicio is None:
@@ -560,12 +1020,12 @@ def detectar_barra(imagem):
 
         elif (
             not ativo
-            and inicio is not None
+            and
+            inicio is not None
         ):
 
             tamanho = (
-                i
-                - inicio
+                i - inicio
             )
 
             if tamanho >= 5:
@@ -578,6 +1038,7 @@ def detectar_barra(imagem):
                 )
 
             inicio = None
+
 
     if inicio is not None:
 
@@ -595,15 +1056,18 @@ def detectar_barra(imagem):
                 )
             )
 
+
     if not segmentos:
 
         return None
+
 
     topo, fundo = max(
         segmentos,
         key=lambda s:
         s[1] - s[0]
     )
+
 
     return (
         topo + y1,
@@ -625,14 +1089,6 @@ def detectar_minigame(imagem):
 
         return True
 
-    barra = detectar_barra(
-        imagem
-    )
-
-    if barra is not None:
-
-        return True
-
     return False
 
 
@@ -646,7 +1102,7 @@ def esperar_minigame():
 
     while True:
 
-        verificar_f1()
+        verificar_f11()
 
         imagem = capturar_tela()
 
@@ -684,6 +1140,7 @@ def controlar_minigame(
 
     margem = 3
 
+
     if peixe_y < topo + margem:
 
         if not SPACE_PRESSIONADO:
@@ -693,6 +1150,7 @@ def controlar_minigame(
             )
 
             SPACE_PRESSIONADO = True
+
 
     elif peixe_y > fundo - margem:
 
@@ -724,11 +1182,11 @@ def resolver_minigame():
 
     while True:
 
-        verificar_f1()
+        verificar_f11()
 
 
         # ====================================================
-        # PROTEÇÃO
+        # TEMPO MÁXIMO
         # ====================================================
 
         if (
@@ -746,7 +1204,7 @@ def resolver_minigame():
 
 
         # ====================================================
-        # DETECTAR PEIXE
+        # PEIXE
         # ====================================================
 
         peixe_y = detectar_peixe(
@@ -755,7 +1213,7 @@ def resolver_minigame():
 
 
         # ====================================================
-        # DETECTAR BARRA
+        # BARRA
         # ====================================================
 
         barra = detectar_barra(
@@ -864,48 +1322,62 @@ def fazer_loot():
 
 
 # ============================================================
+# INÍCIO
+# ============================================================
+
+verificar_f11()
+
+
+# ============================================================
+# SHINY INICIAL
+# ============================================================
+
+pegar_shiny()
+
+
+# ============================================================
+# ELIXIR INICIAL
+# ============================================================
+
+usar_elixir()
+
+
+# ============================================================
+# POSICIONAR MOUSE
+# ============================================================
+
+py.moveTo(
+    *COORDENADA_PESCA
+)
+
+
+# ============================================================
+# PRIMEIRO LANÇAMENTO
+# ============================================================
+
+autoit.send(
+    "q"
+)
+
+
+# ============================================================
 # LOOP PRINCIPAL
 # ============================================================
 
 while True:
 
-    verificar_f1()
+    verificar_f11()
 
 
     # ========================================================
-    # 1. ELIXIR
-    # ========================================================
-
-    usar_elixir()
-
-
-    # ========================================================
-    # 2. POSICIONA MOUSE PARA PESCA
-    # ========================================================
-
-    py.moveTo(
-        *COORDENADA_PESCA
-    )
-
-
-    # ========================================================
-    # 3. LANÇA A VARA
-    # ========================================================
-
-    autoit.send(
-        "q"
-    )
-
-
-    # ========================================================
-    # 4. ESPERA BOLHAS
+    # ESPERA AS BOLHAS
     # ========================================================
 
     esperar_bolhas()
 
 
     # ========================================================
-    # 5. PUXA A VARA
+    # PUXA IMEDIATAMENTE
     # ========================================================
 
     autoit.send(
@@ -914,21 +1386,16 @@ while True:
 
 
     # ========================================================
-    # 6. LOOT
+    # ESPERA 2.3 SEGUNDOS
     # ========================================================
 
-    fazer_loot()
-
-
-    # ========================================================
-    # 7. PROCURA SHINY
-    # ========================================================
-
-    pegar_shiny()
+    time.sleep(
+        TEMPO_REPETIR_PESCA
+    )
 
 
     # ========================================================
-    # 8. VERIFICA MINI-GAME
+    # VERIFICA MINI-GAME
     # ========================================================
 
     if esperar_minigame():
@@ -937,16 +1404,37 @@ while True:
 
 
     # ========================================================
-    # 9. GARANTE SPACE SOLTO
+    # LANÇA NOVAMENTE
+    # ========================================================
+
+    autoit.send(
+        "q"
+    )
+
+
+    # ========================================================
+    # LOOT
+    # ========================================================
+
+    fazer_loot()
+
+
+    # ========================================================
+    # SHINY
+    # ========================================================
+
+    pegar_shiny()
+
+
+    # ========================================================
+    # ELIXIR
+    # ========================================================
+
+    usar_elixir()
+
+
+    # ========================================================
+    # GARANTE SPACE SOLTO
     # ========================================================
 
     liberar_space()
-
-
-    # ========================================================
-    # 10. PRÓXIMA PESCADA
-    # ========================================================
-
-    time.sleep(
-        0.05
-    )
